@@ -105,6 +105,34 @@ class FileApiIntegrationTest {
     }
 
     @Test
+    void validContentWithAMismatchedExtensionIsRejected() throws Exception {
+        // PDF bytes that would be saved by the browser as an executable script or web page.
+        upload("run.bat", "application/pdf", TestFiles.PDF)
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.detail").value("File extension does not match its content (application/pdf)"));
+        upload("invoice.html", "application/pdf", TestFiles.PDF).andExpect(status().isUnsupportedMediaType());
+        upload("photo.pdf", "application/pdf", TestFiles.PNG).andExpect(status().isUnsupportedMediaType());
+        upload("noextension", "image/png", TestFiles.PNG).andExpect(status().isUnsupportedMediaType());
+
+        assertThat(repository.count()).isZero();
+        assertThat(storedFileCount()).isZero();
+    }
+
+    @Test
+    void extensionCheckIsCaseInsensitive() throws Exception {
+        upload("PHOTO.JPEG", "image/jpeg", TestFiles.JPEG).andExpect(status().isCreated());
+    }
+
+    @Test
+    void rightToLeftOverrideCannotDisguiseTheExtension() throws Exception {
+        // "invoice<RLO>fdp.bat" displays as "invoicetab.pdf" but really ends in ".bat".
+        upload("invoice‮fdp.bat", "application/pdf", TestFiles.PDF)
+                .andExpect(status().isUnsupportedMediaType());
+    }
+
+    // MockMvc bypasses Spring's multipart size limit, so this exercises FileService's own check;
+    // the multipart limit itself (also 413) was verified against the running server.
+    @Test
     void fileOverFiveMegabytesIsRejected() throws Exception {
         upload("big.png", "image/png", TestFiles.ofSize(TestFiles.PNG, FIVE_MB + 1))
                 .andExpect(status().isPayloadTooLarge())

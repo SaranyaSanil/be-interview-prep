@@ -34,5 +34,6 @@ class FileTypeAndNameTest {
         assertThat(FileService.safeOriginalName("..")).isEqualTo("file");
         assertThat(FileService.safeOriginalName("dir/")).isEqualTo("file");
         assertThat(FileService.safeOriginalName("bad\r\nname.png")).isEqualTo("badname.png");
+        assertThat(FileService.safeOriginalName("invoice‮fdp.png")).isEqualTo("invoicefdp.png");
     }
 }
