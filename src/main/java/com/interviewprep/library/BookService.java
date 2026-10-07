@@ -56,7 +56,11 @@ public class BookService {
 
     @Transactional
     public void delete(Long id) {
-        bookRepository.delete(get(id));
+        Book book = get(id);
+        if (book.isBorrowed()) {
+            throw new ConflictException("Book " + id + " is currently borrowed and cannot be deleted");
+        }
+        bookRepository.delete(book);
     }
 
     /**
