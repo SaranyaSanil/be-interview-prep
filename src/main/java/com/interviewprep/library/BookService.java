@@ -59,6 +59,30 @@ public class BookService {
         bookRepository.delete(get(id));
     }
 
+    /**
+     * Two concurrent borrows can both see the book as available; the @Version check makes
+     * the second commit fail with an optimistic-locking error, which is returned as 409.
+     */
+    @Transactional
+    public Book borrow(Long id, String memberId) {
+        Book book = get(id);
+        if (book.isBorrowed()) {
+            throw new ConflictException("Book " + id + " is already borrowed");
+        }
+        book.borrow(memberId.trim(), clock.instant());
+        return book;
+    }
+
+    @Transactional
+    public Book giveBack(Long id) {
+        Book book = get(id);
+        if (!book.isBorrowed()) {
+            throw new ConflictException("Book " + id + " is not currently borrowed");
+        }
+        book.giveBack();
+        return book;
+    }
+
     private void validatePublishedYear(Integer publishedYear) {
         if (publishedYear != null && publishedYear > Year.now(clock).getValue()) {
             throw new BadRequestException("Published year cannot be in the future");

@@ -46,6 +46,16 @@ public class BookController {
         return BookResponse.from(bookService.update(id, request));
     }
 
+    @PostMapping("/{id}/borrow")
+    public BookResponse borrow(@PathVariable Long id, @Valid @RequestBody BorrowRequest request) {
+        return BookResponse.from(bookService.borrow(id, request.memberId()));
+    }
+
+    @PostMapping("/{id}/return")
+    public BookResponse giveBack(@PathVariable Long id) {
+        return BookResponse.from(bookService.giveBack(id));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         bookService.delete(id);
