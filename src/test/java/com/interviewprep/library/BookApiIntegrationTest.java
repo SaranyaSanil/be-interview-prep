@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,9 +40,6 @@ class BookApiIntegrationTest {
 
     @Autowired
     private BookRepository bookRepository;
-
-    @Autowired
-    private BookService bookService;
 
     @BeforeEach
     void cleanDatabase() {
@@ -144,29 +142,68 @@ class BookApiIntegrationTest {
         int attempts = 10;
         ExecutorService pool = Executors.newFixedThreadPool(attempts);
         CountDownLatch start = new CountDownLatch(1);
-        List<Future<Boolean>> results = new ArrayList<>();
+        List<Future<Integer>> statuses = new ArrayList<>();
 
         for (int i = 0; i < attempts; i++) {
             String member = "member-" + i;
-            results.add(pool.submit(() -> {
+            statuses.add(pool.submit(() -> {
                 start.await();
-                try {
-                    bookService.borrow(id, member);
-                    return true;
-                } catch (RuntimeException rejected) {
-                    return false;
-                }
+                return borrow(id, member).andReturn().getResponse().getStatus();
             }));
         }
         start.countDown();
 
-        int successes = 0;
-        for (Future<Boolean> result : results) {
-            successes += result.get() ? 1 : 0;
+        List<Integer> results = new ArrayList<>();
+        for (Future<Integer> status : statuses) {
+            results.add(status.get());
         }
         pool.shutdown();
 
-        assertThat(successes).isEqualTo(1);
+        // Every loser must be a 409 (already borrowed or lost the version check), never a 500.
+        assertThat(results).filteredOn(code -> code == 200).hasSize(1);
+        assertThat(results).filteredOn(code -> code == 409).hasSize(attempts - 1);
+        Book book = bookRepository.findById(id).orElseThrow();
+        assertThat(book.getBorrowedBy()).startsWith("member-");
+    }
+
+    @Test
+    void updateKeepingOwnIsbnSucceeds() throws Exception {
+        long id = createBook("Dune", "Frank Herbert", "978-0441013593");
+
+        mockMvc.perform(put("/api/books/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookJson("Dune Messiah", "Frank Herbert", "978-0441013593")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Dune Messiah"))
+                .andExpect(jsonPath("$.isbn").value("9780441013593"));
+    }
+
+    @Test
+    void updateToAnotherBooksIsbnIsRejected() throws Exception {
+        createBook("Dune", "Frank Herbert", "978-0441013593");
+        long id = createBook("Emma", "Jane Austen", "978-0141439587");
+
+        mockMvc.perform(put("/api/books/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookJson("Emma", "Jane Austen", "9780441013593")))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void updateUnknownBookReturnsNotFound() throws Exception {
+        mockMvc.perform(put("/api/books/{id}", 999_999)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookJson("Dune", "Frank Herbert", "978-0441013593")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void publishedYearInTheFutureReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/books")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"T\",\"author\":\"A\",\"isbn\":\"123\",\"publishedYear\":9999}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Published year cannot be in the future"));
     }
 
     private long createBook(String title, String author, String isbn) throws Exception {
