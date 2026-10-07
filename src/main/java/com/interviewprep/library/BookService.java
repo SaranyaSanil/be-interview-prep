@@ -6,6 +6,7 @@ import com.interviewprep.common.NotFoundException;
 import java.time.Clock;
 import java.time.Year;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -34,7 +35,7 @@ public class BookService {
     @Transactional
     public Book create(BookRequest request) {
         validatePublishedYear(request.publishedYear());
-        String isbn = request.isbn().trim();
+        String isbn = normalizeIsbn(request.isbn());
         if (bookRepository.existsByIsbn(isbn)) {
             throw new ConflictException("A book with ISBN " + isbn + " already exists");
         }
@@ -46,7 +47,7 @@ public class BookService {
     public Book update(Long id, BookRequest request) {
         Book book = get(id);
         validatePublishedYear(request.publishedYear());
-        String isbn = request.isbn().trim();
+        String isbn = normalizeIsbn(request.isbn());
         if (bookRepository.existsByIsbnAndIdNot(isbn, id)) {
             throw new ConflictException("A book with ISBN " + isbn + " already exists");
         }
@@ -91,6 +92,11 @@ public class BookService {
         if (publishedYear != null && publishedYear > Year.now(clock).getValue()) {
             throw new BadRequestException("Published year cannot be in the future");
         }
+    }
+
+    // "978-0-441-01359-3" and "9780441013593" are the same ISBN; store one canonical form.
+    static String normalizeIsbn(String isbn) {
+        return isbn.replaceAll("[\\s-]", "").toUpperCase(Locale.ROOT);
     }
 
     private static String blankToNull(String value) {

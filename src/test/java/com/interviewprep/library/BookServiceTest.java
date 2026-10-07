@@ -56,11 +56,16 @@ class BookServiceTest {
     }
 
     @Test
-    void createRejectsDuplicateIsbn() {
-        when(bookRepository.existsByIsbn("isbn-1")).thenReturn(true);
+    void createRejectsDuplicateIsbnInAnyFormat() {
+        when(bookRepository.existsByIsbn("9780441013593")).thenReturn(true);
 
-        assertThatThrownBy(() -> bookService.create(new BookRequest("Title", "Author", "isbn-1", 2000)))
+        assertThatThrownBy(() -> bookService.create(new BookRequest("Title", "Author", "978-0 441-01359-3", 2000)))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void isbnIsNormalizedToDigitsAndUppercase() {
+        assertThat(BookService.normalizeIsbn(" 0-8044-2957-x ")).isEqualTo("080442957X");
     }
 
     @Test
