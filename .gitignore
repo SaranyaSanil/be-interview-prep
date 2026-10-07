@@ -17,5 +17,9 @@ Thumbs.db
 # Logs
 *.log
 
-# Local Claude settings
-.claude/settings.local.json
+# Local Claude Code harness (not part of the project)
+CLAUDE.md
+.claude/
+
+# Local environment (credentials)
+.env
