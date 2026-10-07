@@ -51,3 +51,22 @@ curl -X POST localhost:8080/api/books -H 'Content-Type: application/json'   -d '
 curl -X POST localhost:8080/api/books/1/borrow -H 'Content-Type: application/json' -d '{"memberId":"alice"}'
 ```
 
+## Q2 — Expense Tracker
+
+Base path `/api/expenses`. Amount: positive, at most 2 decimal places. Category: `FOOD`, `TRAVEL`, `BILLS`, `OTHER`.
+Date: `yyyy-MM-dd`. Note: optional.
+
+| Method | Path | Result |
+|--------|------|--------|
+| POST | `/api/expenses` | 201 created; 400 invalid |
+| GET | `/api/expenses?from=&to=&category=` | 200, sorted by date; all filters optional, combined with AND, dates inclusive |
+| GET | `/api/expenses/{id}` | 200; 404 |
+| PUT | `/api/expenses/{id}` | 200; 400; 404 |
+| DELETE | `/api/expenses/{id}` | 204; 404 |
+| GET | `/api/expenses/summary?month=2026-02` | 200, total per category (all four, `0.00` if none) and overall total |
+
+```bash
+curl -X POST localhost:8080/api/expenses -H 'Content-Type: application/json'   -d '{"amount":0.10,"category":"FOOD","date":"2026-02-01","note":"Coffee"}'
+curl 'localhost:8080/api/expenses/summary?month=2026-02'
+```
+
