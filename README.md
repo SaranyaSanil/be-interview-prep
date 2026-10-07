@@ -31,7 +31,7 @@ docker compose up -d --wait       # PostgreSQL on localhost:5433
 Configuration comes from environment variables (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `SERVER_PORT`),
 which can be placed in a git-ignored `.env` file. No credentials are committed.
 
-## Q1 — Library API
+## Q1 â€” Library API
 
 Base path `/api/books`. All errors use RFC 7807 `ProblemDetail` JSON (`status`, `title`, `detail`, plus `errors`
 for field validation).
