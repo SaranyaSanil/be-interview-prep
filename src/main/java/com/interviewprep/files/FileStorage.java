@@ -26,10 +26,20 @@ public class FileStorage {
     }
 
     public void save(UUID id, InputStream content) {
+        Path path = resolve(id);
         try {
-            Files.copy(content, resolve(id));
+            Files.copy(content, path);
         } catch (IOException e) {
+            deleteQuietly(path); // don't leave a partially written file behind
             throw new UncheckedIOException("Could not store file " + id, e);
+        }
+    }
+
+    private static void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+            // best effort; the original failure is what gets reported
         }
     }
 
