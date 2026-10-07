@@ -6,7 +6,7 @@ Five Spring Boot features, each delivered as its own branch and pull request.
 |---|----------|---------|
 | 1 | Library API | [PR #1](https://github.com/SaranyaSanil/be-interview-prep/pull/1) |
 | 2 | Expense Tracker | [PR #2](https://github.com/SaranyaSanil/be-interview-prep/pull/2) |
-| 3 | File Upload Service | |
+| 3 | File Upload Service | [PR #3](https://github.com/SaranyaSanil/be-interview-prep/pull/3) |
 | 4 | API Rate Limiting | |
 | 5 | Appointment Booking | |
 
@@ -68,5 +68,23 @@ Date: `yyyy-MM-dd`. Note: optional.
 ```bash
 curl -X POST localhost:8080/api/expenses -H 'Content-Type: application/json'   -d '{"amount":0.10,"category":"FOOD","date":"2026-02-01","note":"Coffee"}'
 curl 'localhost:8080/api/expenses/summary?month=2026-02'
+```
+
+## Q3 — File Upload Service
+
+Base path `/api/files`. Accepts JPEG, PNG and PDF up to 5 MB, detected from the file's content (magic bytes), not
+its name. Files are stored under a generated UUID in `FILE_STORAGE_DIR` (default `./uploads`).
+
+| Method | Path | Result |
+|--------|------|--------|
+| POST | `/api/files` (multipart field `file`) | 201 metadata; 400 empty/missing; 413 over 5 MB; 415 other types |
+| GET | `/api/files` | 200, name, type, size and upload time, newest first |
+| GET | `/api/files/{id}` | 200 metadata; 404 |
+| GET | `/api/files/{id}/content` | 200 file, downloaded with its original name; 404 |
+| DELETE | `/api/files/{id}` | 204, removes file and record; 404 |
+
+```bash
+curl -F "file=@photo.png" localhost:8080/api/files
+curl -OJ localhost:8080/api/files/{id}/content
 ```
 
