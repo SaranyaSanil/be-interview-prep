@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,7 +49,11 @@ public class FileService {
         return storage.load(id);
     }
 
-    @Transactional
+    /**
+     * Runs without a surrounding transaction: the disk write doesn't hold a database connection,
+     * and saveAndFlush commits on its own, so the cleanup below also covers a failed commit.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public StoredFile upload(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("File is empty");
@@ -57,10 +62,17 @@ public class FileService {
         // holds even if that limit is misconfigured.
         if (file.getSize() > maxFileSize.toBytes()) {
             throw new FileRejectedException(HttpStatus.PAYLOAD_TOO_LARGE,
-                    "File exceeds the maximum size of " + maxFileSize.toMegabytes() + " MB");
+                    "File exceeds the maximum size of " + describe(maxFileSize));
         }
         FileType type = FileType.detect(readHeader(file)).orElseThrow(() -> new FileRejectedException(
                 HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Only JPEG, PNG and PDF files are allowed"));
+        // The name is served back on download, so it must agree with the content too: PDF bytes
+        // named "run.bat" or "invoice.html" would otherwise be saved by the browser under that name.
+        String name = safeOriginalName(file.getOriginalFilename());
+        if (!type.matchesExtension(name)) {
+            throw new FileRejectedException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                    "File extension does not match its content (" + type.mediaType() + ")");
+        }
 
         UUID id = UUID.randomUUID();
         try (InputStream content = file.getInputStream()) {
@@ -69,9 +81,7 @@ public class FileService {
             throw new UncheckedIOException("Could not read upload", e);
         }
         try {
-            return repository.saveAndFlush(new StoredFile(
-                    id, safeOriginalName(file.getOriginalFilename()), type.mediaType(), file.getSize(),
-                    clock.instant()));
+            return repository.saveAndFlush(new StoredFile(id, name, type.mediaType(), file.getSize(), clock.instant()));
         } catch (RuntimeException e) {
             storage.delete(id); // don't leave an orphaned file without a record
             throw e;
@@ -89,6 +99,17 @@ public class FileService {
         storage.delete(id);
     }
 
+    private static String describe(DataSize size) {
+        long bytes = size.toBytes();
+        if (bytes % DataSize.ofMegabytes(1).toBytes() == 0) {
+            return size.toMegabytes() + " MB";
+        }
+        if (bytes % DataSize.ofKilobytes(1).toBytes() == 0) {
+            return size.toKilobytes() + " KB";
+        }
+        return bytes + " bytes";
+    }
+
     private static byte[] readHeader(MultipartFile file) {
         try (InputStream in = file.getInputStream()) {
             return in.readNBytes(FileType.HEADER_LENGTH);
@@ -99,15 +120,16 @@ public class FileService {
 
     /**
      * Keeps only the last path segment ("../../etc/passwd.png" -> "passwd.png") and drops
-     * control characters. The name is only ever stored and echoed in the download header,
-     * never used to build a path.
+     * control and invisible formatting characters (e.g. U+202E, which can make "fdp.bat" display
+     * as "tab.pdf"). The name is only ever stored and echoed in the download header, never used
+     * to build a path.
      */
     static String safeOriginalName(String originalName) {
         if (originalName == null) {
             return "file";
         }
         String name = originalName.replace('\\', '/');
-        name = name.substring(name.lastIndexOf('/') + 1).replaceAll("\\p{Cntrl}", "").strip();
+        name = name.substring(name.lastIndexOf('/') + 1).replaceAll("[\\p{Cntrl}\\p{Cf}]", "").strip();
         if (name.isEmpty() || name.equals(".") || name.equals("..")) {
             return "file";
         }
