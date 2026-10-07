@@ -68,6 +68,7 @@ class BookingApiIntegrationTest {
 
     private long doctorId;
     private long nineOClock;
+    private long halfPastNine;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -77,6 +78,7 @@ class BookingApiIntegrationTest {
         doctorId = createDoctor("Dr. Rao");
         List<Long> slots = createSlots(doctorId, "09:00", "10:30");
         nineOClock = slots.get(0);
+        halfPastNine = slots.get(1);
     }
 
     @Test
@@ -123,6 +125,33 @@ class BookingApiIntegrationTest {
                 .andExpect(jsonPath("$", hasSize(3)))
                 .andExpect(jsonPath("$[0].id").value(nineOClock));
         action(nineOClock, "hold", "bob").andExpect(status().isOk());
+        action(nineOClock, "confirm", "alice").andExpect(status().isConflict());
+    }
+
+    @Test
+    void ownExpiredHoldCannotBeConfirmedAtTheExactBoundary() throws Exception {
+        action(nineOClock, "hold", "alice").andExpect(status().isOk());
+        action(halfPastNine, "hold", "alice").andExpect(status().isOk());
+
+        clock.advance(Duration.ofMinutes(5).minusSeconds(1));
+        action(nineOClock, "confirm", "alice").andExpect(status().isOk());
+
+        clock.advance(Duration.ofSeconds(1)); // nobody else has touched the slot; the hold simply expired
+        action(halfPastNine, "confirm", "alice")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(
+                        "No active hold on slot " + halfPastNine + " for this patient; it may have expired"));
+    }
+
+    @Test
+    void holdNeverOutlivesTheSlotStart() throws Exception {
+        clock.set(Instant.parse("2026-10-08T08:58:00Z"));
+
+        action(nineOClock, "hold", "alice")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.holdExpiresAt").value("2026-10-08T09:00:00Z"));
+
+        clock.set(Instant.parse("2026-10-08T09:00:00Z"));
         action(nineOClock, "confirm", "alice").andExpect(status().isConflict());
     }
 
