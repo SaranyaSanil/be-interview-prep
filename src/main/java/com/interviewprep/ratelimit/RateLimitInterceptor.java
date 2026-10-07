@@ -8,6 +8,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.ErrorResponseException;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
@@ -19,6 +20,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class RateLimitInterceptor implements HandlerInterceptor {
 
     public static final String API_KEY_HEADER = "X-API-Key";
+    private static final String REMAINING_HEADER = "X-RateLimit-Remaining";
 
     private final SlidingWindowRateLimiter rateLimiter;
 
@@ -28,6 +30,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        // Only count requests that reached a real endpoint; unknown paths fall through to a 404.
+        if (!(handler instanceof HandlerMethod)) {
+            return true;
+        }
         String apiKey = request.getHeader(API_KEY_HEADER);
         if (!StringUtils.hasText(apiKey)) {
             throw new ErrorResponseException(HttpStatus.UNAUTHORIZED,
@@ -39,7 +45,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         if (!decision.allowed()) {
             throw tooManyRequests(decision.retryAfterSeconds());
         }
-        response.setHeader("X-RateLimit-Remaining", String.valueOf(decision.remaining()));
+        response.setHeader(REMAINING_HEADER, String.valueOf(decision.remaining()));
         return true;
     }
 
@@ -49,6 +55,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         body.setProperty("retryAfterSeconds", retryAfterSeconds);
         ErrorResponseException exception = new ErrorResponseException(HttpStatus.TOO_MANY_REQUESTS, body, null);
         exception.getHeaders().set(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds));
+        exception.getHeaders().set(REMAINING_HEADER, "0");
         return exception;
     }
 }
