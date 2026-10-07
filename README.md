@@ -70,3 +70,21 @@ curl -X POST localhost:8080/api/expenses -H 'Content-Type: application/json'   -
 curl 'localhost:8080/api/expenses/summary?month=2026-02'
 ```
 
+## Q3 — File Upload Service
+
+Base path `/api/files`. Accepts JPEG, PNG and PDF up to 5 MB, detected from the file's content (magic bytes), not
+its name. Files are stored under a generated UUID in `FILE_STORAGE_DIR` (default `./uploads`).
+
+| Method | Path | Result |
+|--------|------|--------|
+| POST | `/api/files` (multipart field `file`) | 201 metadata; 400 empty/missing; 413 over 5 MB; 415 other types |
+| GET | `/api/files` | 200, name, type, size and upload time, newest first |
+| GET | `/api/files/{id}` | 200 metadata; 404 |
+| GET | `/api/files/{id}/content` | 200 file, downloaded with its original name; 404 |
+| DELETE | `/api/files/{id}` | 204, removes file and record; 404 |
+
+```bash
+curl -F "file=@photo.png" localhost:8080/api/files
+curl -OJ localhost:8080/api/files/{id}/content
+```
+
