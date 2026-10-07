@@ -105,3 +105,26 @@ for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code}
 RATE_LIMIT_REQUESTS=3 RATE_LIMIT_WINDOW=10s ./mvnw spring-boot:run   # change the limit without code changes
 ```
 
+## Q5 — Appointment Booking
+
+Doctors have 30-minute slots. Booking is two steps: hold, then confirm within `BOOKING_HOLD_DURATION`
+(default 5 minutes); an unconfirmed hold expires and the slot becomes available again. Slot times are clinic-local
+(`CLINIC_TIME_ZONE`, default UTC).
+
+| Method | Path | Result |
+|--------|------|--------|
+| POST | `/api/doctors` `{"name"}` | 201 |
+| POST | `/api/doctors/{id}/slots` `{"date","from","to"}` | 201, 30-minute slots from `from` to `to`; 400 not on :00/:30; 409 overlap |
+| GET | `/api/doctors/{id}/slots?date=2026-10-08` | 200, available slots that haven't started |
+| POST | `/api/slots/{id}/hold` `{"patientId"}` | 200 with `holdExpiresAt`; 409 not available or already started |
+| POST | `/api/slots/{id}/confirm` `{"patientId"}` | 200 booked, notification logged after commit; 409 no active hold for this patient |
+| POST | `/api/slots/{id}/cancel` `{"patientId"}` | 200, slot available again; 409 not this patient's booking |
+
+```bash
+curl -X POST localhost:8080/api/doctors -H 'Content-Type: application/json' -d '{"name":"Dr. Rao"}'
+curl -X POST localhost:8080/api/doctors/1/slots -H 'Content-Type: application/json'   -d '{"date":"2026-12-01","from":"09:00","to":"12:00"}'
+curl 'localhost:8080/api/doctors/1/slots?date=2026-12-01'
+curl -X POST localhost:8080/api/slots/1/hold -H 'Content-Type: application/json' -d '{"patientId":"alice"}'
+curl -X POST localhost:8080/api/slots/1/confirm -H 'Content-Type: application/json' -d '{"patientId":"alice"}'
+```
+
