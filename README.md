@@ -30,3 +30,24 @@ docker compose up -d --wait       # PostgreSQL on localhost:5433
 
 Configuration comes from environment variables (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `SERVER_PORT`),
 which can be placed in a git-ignored `.env` file. No credentials are committed.
+
+## Q1 — Library API
+
+Base path `/api/books`. All errors use RFC 7807 `ProblemDetail` JSON (`status`, `title`, `detail`, plus `errors`
+for field validation).
+
+| Method | Path | Result |
+|--------|------|--------|
+| POST | `/api/books` | 201 created; 400 invalid; 409 duplicate ISBN |
+| GET | `/api/books?title=&author=` | 200, case-insensitive partial match |
+| GET | `/api/books/{id}` | 200; 404 |
+| PUT | `/api/books/{id}` | 200; 400; 404; 409 duplicate ISBN |
+| DELETE | `/api/books/{id}` | 204; 404; 409 if currently borrowed |
+| POST | `/api/books/{id}/borrow` `{"memberId":"alice"}` | 200; 404; 409 if already borrowed |
+| POST | `/api/books/{id}/return` | 200; 404; 409 if not borrowed |
+
+```bash
+curl -X POST localhost:8080/api/books -H 'Content-Type: application/json'   -d '{"title":"Dune","author":"Frank Herbert","isbn":"978-0441013593","publishedYear":1965}'
+curl -X POST localhost:8080/api/books/1/borrow -H 'Content-Type: application/json' -d '{"memberId":"alice"}'
+```
+
