@@ -48,11 +48,13 @@ public class FileController {
     public ResponseEntity<Resource> download(@PathVariable UUID id) {
         StoredFile file = fileService.get(id);
         Resource content = fileService.content(id);
-        // ContentDisposition encodes the name (RFC 6266 filename*), so quotes or newlines
-        // in a user-supplied name can't break or inject headers.
-        ContentDisposition disposition = ContentDisposition.attachment()
-                .filename(file.getOriginalName(), StandardCharsets.UTF_8)
-                .build();
+        // ContentDisposition quotes/escapes the name, so a user-supplied name can't break or inject
+        // headers. Non-ASCII names are sent RFC 5987-encoded (filename*=UTF-8'').
+        String name = file.getOriginalName();
+        ContentDisposition.Builder builder = ContentDisposition.attachment();
+        ContentDisposition disposition = StandardCharsets.US_ASCII.newEncoder().canEncode(name)
+                ? builder.filename(name).build()
+                : builder.filename(name, StandardCharsets.UTF_8).build();
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.getContentType()))
                 .contentLength(file.getSize())
