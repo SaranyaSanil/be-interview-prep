@@ -5,7 +5,6 @@ import com.interviewprep.common.NotFoundException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -37,11 +36,15 @@ public class BookingService {
     @Transactional
     public Slot hold(Long slotId, String patientId) {
         Slot slot = getSlot(slotId);
-        if (!slot.getStartsAt().isAfter(LocalDateTime.ofInstant(clock.instant(), clinicZone))) {
+        Instant now = clock.instant();
+        Instant startsAt = slot.getStartsAt().atZone(clinicZone).toInstant();
+        if (!startsAt.isAfter(now)) {
             throw new ConflictException("Slot " + slotId + " has already started");
         }
-        Instant now = clock.instant();
-        if (slotRepository.hold(slotId, patientId, now, now.plus(holdDuration)) == 0) {
+        // A hold never outlives the slot's start, so confirm's expiry check also stops confirming
+        // an appointment that is already under way.
+        Instant expiresAt = now.plus(holdDuration).isAfter(startsAt) ? startsAt : now.plus(holdDuration);
+        if (slotRepository.hold(slotId, patientId, now, expiresAt) == 0) {
             throw new ConflictException("Slot " + slotId + " is not available");
         }
         return getSlot(slotId);
