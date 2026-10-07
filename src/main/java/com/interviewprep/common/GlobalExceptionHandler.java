@@ -1,8 +1,11 @@
 package com.interviewprep.common;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -100,10 +103,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception ex, @Nullable Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
         // Spring's default detail text can mention internal types; replace it with a neutral message.
         if (body instanceof ProblemDetail problemDetail && statusCode.is4xxClientError()
-                && ex instanceof HttpMessageNotReadableException) {
-            problemDetail.setDetail("Malformed request body");
+                && ex instanceof HttpMessageNotReadableException notReadable) {
+            problemDetail.setDetail(unreadableBodyDetail(notReadable));
         }
         return super.handleExceptionInternal(ex, body, headers, statusCode, request);
+    }
+
+    // An unknown enum value in the JSON body gets a message naming the field and the allowed values.
+    private static String unreadableBodyDetail(HttpMessageNotReadableException ex) {
+        if (ex.getCause() instanceof InvalidFormatException invalid
+                && invalid.getTargetType() != null && invalid.getTargetType().isEnum()
+                && !invalid.getPath().isEmpty()) {
+            String field = invalid.getPath().get(invalid.getPath().size() - 1).getFieldName();
+            String allowed = Arrays.stream(invalid.getTargetType().getEnumConstants())
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", "));
+            return "Invalid value for '" + field + "'. Allowed values: " + allowed;
+        }
+        return "Malformed request body";
     }
 
     private static ProblemDetail problem(HttpStatus status, String detail) {
