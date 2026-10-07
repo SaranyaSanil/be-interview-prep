@@ -7,7 +7,7 @@ Five Spring Boot features, each delivered as its own branch and pull request.
 | 1 | Library API | [PR #1](https://github.com/SaranyaSanil/be-interview-prep/pull/1) |
 | 2 | Expense Tracker | [PR #2](https://github.com/SaranyaSanil/be-interview-prep/pull/2) |
 | 3 | File Upload Service | [PR #3](https://github.com/SaranyaSanil/be-interview-prep/pull/3) |
-| 4 | API Rate Limiting | |
+| 4 | API Rate Limiting | [PR #4](https://github.com/SaranyaSanil/be-interview-prep/pull/4) |
 | 5 | Appointment Booking | |
 
 Video:
@@ -86,5 +86,22 @@ its name. Files are stored under a generated UUID in `FILE_STORAGE_DIR` (default
 ```bash
 curl -F "file=@photo.png" localhost:8080/api/files
 curl -OJ localhost:8080/api/files/{id}/content
+```
+
+## Q4 — API Rate Limiting
+
+`GET /api/quotes/random` returns a random quote. Each client must send an `X-API-Key` header and may make at most
+`RATE_LIMIT_REQUESTS` (default 10) requests in any sliding `RATE_LIMIT_WINDOW` (default `1m`).
+
+| Case | Result |
+|------|--------|
+| Within the limit | 200, `X-RateLimit-Remaining` header |
+| Missing `X-API-Key` | 401 |
+| Over the limit | 429, `Retry-After: <seconds>` header and `retryAfterSeconds` in the body |
+
+```bash
+for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code}
+" -H 'X-API-Key: demo' localhost:8080/api/quotes/random; done
+RATE_LIMIT_REQUESTS=3 RATE_LIMIT_WINDOW=10s ./mvnw spring-boot:run   # change the limit without code changes
 ```
 
