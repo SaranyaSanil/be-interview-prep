@@ -4,7 +4,7 @@ Five Spring Boot features, each delivered as its own branch and pull request.
 
 | # | Question | PR link |
 |---|----------|---------|
-| 1 | Library API | |
+| 1 | Library API | [PR #1](https://github.com/SaranyaSanil/be-interview-prep/pull/1) |
 | 2 | Expense Tracker | |
 | 3 | File Upload Service | |
 | 4 | API Rate Limiting | |
