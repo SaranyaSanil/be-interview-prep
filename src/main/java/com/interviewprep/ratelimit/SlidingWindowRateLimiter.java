@@ -7,6 +7,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -39,10 +40,7 @@ public class SlidingWindowRateLimiter {
             Instant now = clock.instant();
             Instant windowStart = now.minus(window);
             Deque<Instant> log = existing != null ? existing : new ArrayDeque<>();
-            // Drop requests that are no longer inside the window.
-            while (!log.isEmpty() && !log.peekFirst().isAfter(windowStart)) {
-                log.pollFirst();
-            }
+            pruneBefore(log, windowStart);
             if (log.size() < limit) {
                 log.addLast(now);
                 decision[0] = RateLimitDecision.allow(limit - log.size());
@@ -53,5 +51,32 @@ public class SlidingWindowRateLimiter {
             return log;
         });
         return decision[0];
+    }
+
+    /**
+     * Removes keys with no requests left in the window, so memory doesn't grow with every key
+     * ever seen (e.g. a client sending a new random key per request). computeIfPresent keeps
+     * this atomic with tryAcquire; returning null removes the entry.
+     */
+    @Scheduled(fixedDelayString = "${app.rate-limit.cleanup-interval:1m}")
+    public void evictIdleKeys() {
+        Instant windowStart = clock.instant().minus(window);
+        for (String key : requestLog.keySet()) {
+            requestLog.computeIfPresent(key, (k, log) -> {
+                pruneBefore(log, windowStart);
+                return log.isEmpty() ? null : log;
+            });
+        }
+    }
+
+    int trackedKeys() {
+        return requestLog.size();
+    }
+
+    // Drops requests that are no longer inside the window (oldest first).
+    private static void pruneBefore(Deque<Instant> log, Instant windowStart) {
+        while (!log.isEmpty() && !log.peekFirst().isAfter(windowStart)) {
+            log.pollFirst();
+        }
     }
 }
