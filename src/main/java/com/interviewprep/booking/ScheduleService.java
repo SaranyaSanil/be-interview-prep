@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -20,11 +21,14 @@ public class ScheduleService {
     private final DoctorRepository doctorRepository;
     private final SlotRepository slotRepository;
     private final Clock clock;
+    private final ZoneId clinicZone;
 
-    public ScheduleService(DoctorRepository doctorRepository, SlotRepository slotRepository, Clock clock) {
+    public ScheduleService(DoctorRepository doctorRepository, SlotRepository slotRepository, Clock clock,
+                           BookingProperties properties) {
         this.doctorRepository = doctorRepository;
         this.slotRepository = slotRepository;
         this.clock = clock;
+        this.clinicZone = properties.zone();
     }
 
     @Transactional
@@ -57,10 +61,15 @@ public class ScheduleService {
         return slotRepository.saveAll(startTimes.stream().map(start -> new Slot(doctor, start)).toList());
     }
 
+    /** Free slots (or slots whose hold has expired) on that day that haven't started yet. */
     public List<Slot> availableSlots(Long doctorId, LocalDate date) {
         getDoctor(doctorId);
+        LocalDateTime nowAtClinic = LocalDateTime.ofInstant(clock.instant(), clinicZone);
         return slotRepository.findAvailable(
-                doctorId, date.atStartOfDay(), date.plusDays(1).atStartOfDay(), clock.instant());
+                        doctorId, date.atStartOfDay(), date.plusDays(1).atStartOfDay(), clock.instant())
+                .stream()
+                .filter(slot -> slot.getStartsAt().isAfter(nowAtClinic))
+                .toList();
     }
 
     private static boolean isOnHalfHour(LocalTime time) {
