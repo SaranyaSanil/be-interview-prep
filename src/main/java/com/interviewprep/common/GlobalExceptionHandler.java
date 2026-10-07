@@ -75,6 +75,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         Map<String, String> errors = new TreeMap<>();
         ex.getBindingResult().getFieldErrors()
                 .forEach(error -> errors.putIfAbsent(error.getField(), error.getDefaultMessage()));
+        // Class-level constraints (e.g. a date range spanning two fields) have no single field.
+        ex.getBindingResult().getGlobalErrors()
+                .forEach(error -> errors.putIfAbsent(error.getObjectName(), error.getDefaultMessage()));
 
         ProblemDetail body = problem(HttpStatus.BAD_REQUEST, "Request validation failed");
         body.setProperty("errors", errors);
