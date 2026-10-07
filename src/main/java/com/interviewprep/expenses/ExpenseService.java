@@ -6,8 +6,12 @@ import static com.interviewprep.expenses.ExpenseSpecifications.onOrBefore;
 
 import com.interviewprep.common.BadRequestException;
 import com.interviewprep.common.NotFoundException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -19,6 +23,7 @@ import org.springframework.util.StringUtils;
 public class ExpenseService {
 
     private static final Sort BY_DATE = Sort.by("date", "id");
+    private static final BigDecimal ZERO = new BigDecimal("0.00");
 
     private final ExpenseRepository expenseRepository;
 
@@ -56,6 +61,22 @@ public class ExpenseService {
     @Transactional
     public void delete(Long id) {
         expenseRepository.delete(get(id));
+    }
+
+    /**
+     * The month runs from its first to its last calendar day, both inclusive. Dates are
+     * LocalDate (no time part), so an expense on the 1st or the 31st is always inside.
+     */
+    public MonthlySummaryResponse monthlySummary(YearMonth month) {
+        Map<Category, BigDecimal> totals = new EnumMap<>(Category.class);
+        for (Category category : Category.values()) {
+            totals.put(category, ZERO);
+        }
+        expenseRepository.totalsByCategory(month.atDay(1), month.atEndOfMonth())
+                .forEach(row -> totals.put(row.category(), row.total().setScale(2)));
+
+        BigDecimal overall = totals.values().stream().reduce(ZERO, BigDecimal::add);
+        return new MonthlySummaryResponse(month, totals, overall);
     }
 
     private static String normalizeNote(String note) {

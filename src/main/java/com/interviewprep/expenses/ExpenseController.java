@@ -3,6 +3,7 @@ package com.interviewprep.expenses;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,12 @@ public class ExpenseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Category category) {
         return expenseService.list(from, to, category).stream().map(ExpenseResponse::from).toList();
+    }
+
+    // Declared before /{id} for readability; Spring prefers the literal path either way.
+    @GetMapping("/summary")
+    public MonthlySummaryResponse summary(@RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
+        return expenseService.monthlySummary(month);
     }
 
     @GetMapping("/{id}")
