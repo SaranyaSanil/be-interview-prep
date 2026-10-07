@@ -8,7 +8,7 @@ Five Spring Boot features, each delivered as its own branch and pull request.
 | 2 | Expense Tracker | [PR #2](https://github.com/SaranyaSanil/be-interview-prep/pull/2) |
 | 3 | File Upload Service | [PR #3](https://github.com/SaranyaSanil/be-interview-prep/pull/3) |
 | 4 | API Rate Limiting | [PR #4](https://github.com/SaranyaSanil/be-interview-prep/pull/4) |
-| 5 | Appointment Booking | |
+| 5 | Appointment Booking | [PR #5](https://github.com/SaranyaSanil/be-interview-prep/pull/5) |
 
 Video:
 
