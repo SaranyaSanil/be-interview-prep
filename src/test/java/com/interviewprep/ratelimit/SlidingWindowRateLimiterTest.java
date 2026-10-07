@@ -76,6 +76,19 @@ class SlidingWindowRateLimiterTest {
     }
 
     @Test
+    void idleKeysAreEvictedButActiveKeysAreKept() {
+        limiter.tryAcquire("idle");
+        clock.advance(Duration.ofSeconds(30));
+        limiter.tryAcquire("active");
+        clock.advance(Duration.ofSeconds(31)); // "idle" is now outside the window, "active" is not
+
+        limiter.evictIdleKeys();
+
+        assertThat(limiter.trackedKeys()).isEqualTo(1);
+        assertThat(limiter.tryAcquire("active").remaining()).isEqualTo(8); // its earlier request still counts
+    }
+
+    @Test
     void simultaneousRequestsNeverExceedTheLimit() throws Exception {
         SlidingWindowRateLimiter realTimeLimiter =
                 new SlidingWindowRateLimiter(new RateLimitProperties(10, Duration.ofMinutes(1)), Clock.systemUTC());

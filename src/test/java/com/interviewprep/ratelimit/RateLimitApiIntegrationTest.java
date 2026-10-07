@@ -40,6 +40,7 @@ class RateLimitApiIntegrationTest {
         getQuote(apiKey)
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", "60"))
+                .andExpect(header().string("X-RateLimit-Remaining", "0"))
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.title").value("Too Many Requests"))
                 .andExpect(jsonPath("$.retryAfterSeconds", allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(60))));
@@ -61,6 +62,11 @@ class RateLimitApiIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.detail").value("Missing X-API-Key header"));
         getQuote("  ").andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unknownPathIsNotRateLimited() throws Exception {
+        mockMvc.perform(get("/api/quotes/typo")).andExpect(status().isNotFound());
     }
 
     private ResultActions getQuote(String key) throws Exception {
